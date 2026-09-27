@@ -22,7 +22,7 @@ class User(Base):
 
 Base.metadata.create_all(engine)
 
-def add_user(name, password):
+async def add_user(name, password):
     Session = sessionmaker(bind=engine)
     session = Session()
     user = User(name=name, password=password)
@@ -40,13 +40,12 @@ def add_user(name, password):
         # Закрываем сессию
         session.close()
 
-def get_all_users():
+async def get_all_users():
     Session = sessionmaker(bind=engine)
     session = Session()
     users = session.query(User).all()
     session.close()
     li = {}
-    print(li)
     for user in users:
         li.update({f'{user.name}': f'{user.password}'})
     print(li)

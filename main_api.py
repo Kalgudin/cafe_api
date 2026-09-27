@@ -11,14 +11,13 @@ async def menu() -> dict:
     return {"menu": 'cofe'}
 
 @app.get("/users")
-async def users() -> list:
+async def users() -> dict:
     Session = sessionmaker(bind=engine)
     session = Session()
     users = session.query(User).all()
     session.close()
-    li = []
+    res = {}
 
     for user in users:
-        li.update({'name':f'{user.name}', 'passward':f'{user.password}'})
-    print(li)
-    return li
+        res[f'{user.id}'] = {'name':f'{user.name}', 'passward':f'{user.password}'}
+    return res
