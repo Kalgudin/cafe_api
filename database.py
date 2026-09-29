@@ -1,29 +1,22 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
+# строка подключения к postgres
+# DATABASE_URL = "postgresql+asyncpg://postgres:Xzxz0011@localhost:5432/coffee_db"
 DATABASE_URL = "sqlite+aiosqlite:///./app.db"
 
-engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+engine = create_async_engine(DATABASE_URL)
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-)
+# фабрика сессий
+SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
+# базовый класс для моделей
 class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncSession:
-    """Dependency для получения асинхронной сессии."""
-    async with AsyncSessionLocal() as session:
+# зависимость для эндпоинтов
+async def get_db():
+    async with SessionLocal() as session:
         yield session
-
-
-async def init_db() -> None:
-    """Создание таблиц при старте приложения."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)

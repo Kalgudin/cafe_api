@@ -1,0 +1,9 @@
+# 1. Установить зависимости
+pip install -r requirements.txt
+
+# 2. Создать БД в postgres
+# psql -U postgres
+# CREATE DATABASE coffee_db;
+
+# 3. Запустить сервер
+uvicorn main:app --reload

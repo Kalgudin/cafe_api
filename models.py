@@ -1,57 +1,121 @@
 from datetime import datetime
-from typing import Annotated
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Boolean, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from database import Base
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-from database import Base  # или определите Base прямо здесь, см. ниже
-
-
-# ============================================================
-# ПЕРЕИСПОЛЬЗУЕМЫЕ ТИПЫ (Annotated)
-# ============================================================
-
-# Первичный ключ: int + primary_key + index + автоинкремент
-int_pk = Annotated[int, mapped_column(Integer, primary_key=True, index=True)]
-
-# Числа
-int_required = Annotated[int, mapped_column(Integer, nullable=False)]
-
-# Строки фиксированной длины
-str_100_unique = Annotated[str, mapped_column(String(100), unique=True, index=True)]
-str_100 = Annotated[str, mapped_column(String(100), index=True)]
-# str_150 = Annotated[str, mapped_column(String(150), index=True)]
-# str_255 = Annotated[str, mapped_column(String(255))]
-# str_500_opt = Annotated[str | None, mapped_column(String(500), nullable=True)]
-
-# Текст
-text_opt = Annotated[str | None, mapped_column(Text, nullable=True)]
-
-# Дата/время
-# datetime_created = Annotated[
-#     datetime,
-#     mapped_column(DateTime(timezone=True), server_default=func.now()),
-# ]
-
-
-# ============================================================
-# МОДЕЛИ
-# ============================================================
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int_pk]
-    name: Mapped[str_100_unique]
-    password: Mapped[str_100]
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    phone: Mapped[str] = mapped_column(String(20), unique=True)
+    balance_points: Mapped[int] = mapped_column(Integer, default=0)
+    registration_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # связи
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    favorites: Mapped[list["Favorite"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    loyalty_transactions: Mapped[list["LoyaltyTransaction"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    promotions: Mapped[list["Promotion"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
-class Dish(Base):
-    __tablename__ = "dishes"
+class MenuItem(Base):
+    __tablename__ = "menu_items"
 
-    id: Mapped[int_pk]
-    name: Mapped[str_100_unique]
-    category: Mapped[str_100]
-    price: Mapped[int_required]
-    description: Mapped[text_opt]
-    foto: Mapped[text_opt]
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+    description: Mapped[str] = mapped_column(String(500), default="")
+    price: Mapped[float] = mapped_column(Numeric(10, 2))
+    category: Mapped[str] = mapped_column(String(100))
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # связи
+    order_items: Mapped[list["OrderItem"]] = relationship(back_populates="menu_item")
+    favorites: Mapped[list["Favorite"]] = relationship(back_populates="menu_item")
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    status: Mapped[str] = mapped_column(String(30), default="new")
+    delivery_method: Mapped[str] = mapped_column(String(30), default="pickup")
+
+    # связи
+    user: Mapped["User"] = relationship(back_populates="orders")
+    items: Mapped[list["OrderItem"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan"
+    )
+    loyalty_transactions: Mapped[list["LoyaltyTransaction"]] = relationship(
+        back_populates="order"
+    )
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id"))
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    drink_options: Mapped[str] = mapped_column(String(300), default="")
+    price: Mapped[float] = mapped_column(Numeric(10, 2))
+
+    # связи
+    order: Mapped["Order"] = relationship(back_populates="items")
+    menu_item: Mapped["MenuItem"] = relationship(back_populates="order_items")
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id"))
+    added_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # связи
+    user: Mapped["User"] = relationship(back_populates="favorites")
+    menu_item: Mapped["MenuItem"] = relationship(back_populates="favorites")
+
+
+class Promotion(Base):
+    __tablename__ = "promotions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    description: Mapped[str] = mapped_column(String(500))
+    discount: Mapped[float] = mapped_column(Numeric(5, 2))
+    start_date: Mapped[datetime] = mapped_column(DateTime)
+    end_date: Mapped[datetime] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(String(30), default="active")
+
+    # связи
+    user: Mapped["User"] = relationship(back_populates="promotions")
+
+
+class LoyaltyTransaction(Base):
+    __tablename__ = "loyalty_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=True)
+    points: Mapped[int] = mapped_column(Integer)
+    operation_type: Mapped[str] = mapped_column(String(30))  # accrual / spend / refund
+    date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # связи
+    user: Mapped["User"] = relationship(back_populates="loyalty_transactions")
+    order: Mapped["Order"] = relationship(back_populates="loyalty_transactions")

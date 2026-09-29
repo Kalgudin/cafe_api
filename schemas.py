@@ -1,49 +1,154 @@
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict
 
 
 # ==================== USER ====================
-class UserBase(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100)
+class UserCreate(BaseModel):
+    name: str
+    phone: str
 
 
-class UserCreate(UserBase):
-    password: str = Field(..., min_length=4, max_length=100)
-
-
-class UserUpdate(BaseModel):
-    name: str | None = Field(None, min_length=2, max_length=100)
-    password: str | None = Field(None, min_length=4, max_length=100)
-
-
-class UserRead(UserBase):
-    """Схема для ответа — без пароля!"""
+class UserOut(BaseModel):
+    id: int
+    name: str
+    phone: str
+    balance_points: int
+    registration_date: datetime
     model_config = ConfigDict(from_attributes=True)
 
+
+class UserShort(BaseModel):
     id: int
-
-
-# ==================== DISH ====================
-class DishBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=150)
-    category: str = Field(..., min_length=1, max_length=100)
-    price: float = Field(..., ge=0)
-    description: str | None = None
-    foto: str | None = None
-
-
-class DishCreate(DishBase):
-    pass
-
-
-class DishUpdate(BaseModel):
-    name: str | None = Field(None, min_length=1, max_length=150)
-    category: str | None = Field(None, min_length=1, max_length=100)
-    price: float | None = Field(None, ge=0)
-    description: str | None = None
-    foto: str | None = None
-
-
-class DishRead(DishBase):
+    name: str
+    phone: str
     model_config = ConfigDict(from_attributes=True)
 
+
+# ==================== MENU ====================
+class MenuItemCreate(BaseModel):
+    name: str
+    description: str = ""
+    price: float
+    category: str
+    is_available: bool = True
+
+
+class MenuItemOut(MenuItemCreate):
     id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MenuItemShort(BaseModel):
+    id: int
+    name: str
+    price: float
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== ORDER ====================
+class OrderItemCreate(BaseModel):
+    menu_item_id: int
+    quantity: int = 1
+    drink_options: str = ""
+
+
+class OrderCreate(BaseModel):
+    user_id: int
+    delivery_method: str = "pickup"
+    items: list[OrderItemCreate] = []
+
+
+class OrderItemOut(BaseModel):
+    id: int
+    menu_item_id: int
+    quantity: int
+    drink_options: str
+    price: float
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderItemFull(BaseModel):
+    id: int
+    quantity: int
+    drink_options: str
+    price: float
+    menu_item: MenuItemShort
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderOut(BaseModel):
+    id: int
+    user_id: int
+    date: datetime
+    total: float
+    status: str
+    delivery_method: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderFull(BaseModel):
+    id: int
+    date: datetime
+    total: float
+    status: str
+    delivery_method: str
+    user: UserShort
+    items: list[OrderItemFull]
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== FAVORITE ====================
+class FavoriteCreate(BaseModel):
+    user_id: int
+    menu_item_id: int
+
+
+class FavoriteOut(FavoriteCreate):
+    id: int
+    added_date: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FavoriteFull(BaseModel):
+    id: int
+    added_date: datetime
+    menu_item: MenuItemShort
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== PROMOTION ====================
+class PromotionCreate(BaseModel):
+    user_id: int
+    description: str
+    discount: float
+    start_date: datetime
+    end_date: datetime
+
+
+class PromotionOut(PromotionCreate):
+    id: int
+    status: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== LOYALTY ====================
+class LoyaltyCreate(BaseModel):
+    user_id: int
+    order_id: int | None = None
+    points: int
+    operation_type: str  # accrual / spend / refund
+
+
+class LoyaltyOut(LoyaltyCreate):
+    id: int
+    date: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LoyaltyFull(BaseModel):
+    id: int
+    points: int
+    operation_type: str
+    date: datetime
+    order_id: int | None = None
+    model_config = ConfigDict(from_attributes=True)
