@@ -49,5 +49,12 @@
         </library>
       </libraries>
     </data-source>
+    <data-source source="LOCAL" name="coffee_db@localhost" uuid="ba67f016-a402-4898-be1c-540478b10e9b">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://localhost:5432/coffee_db</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>

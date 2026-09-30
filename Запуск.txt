@@ -2,8 +2,24 @@
 pip install -r requirements.txt
 
 # 2. Создать БД в postgres
-# psql -U postgres
-# CREATE DATABASE coffee_db;
+psql -U postgres
+
+CREATE DATABASE coffee_db;
+ALTER DATABASE coffee_db OWNER TO cafe_admin;
+GRANT ALL PRIVILEGES ON DATABASE coffee_db TO cafe_admin;
+
+GRANT pg_read_all_data TO cafe_admin;
+GRANT pg_write_all_data TO cafe_admin;
 
 # 3. Запустить сервер
 uvicorn main:app --reload
+
+
+# строка подключения к postgres
+#DATABASE_URL = "postgresql+asyncpg://postgres:Xzxz0011@localhost:5433/coffee_db"
+#DATABASE_URL = "postgresql+asyncpg://cafe_admin:cafe_admin@localhost:5432/coffee_db"
+# DATABASE_URL = "sqlite+aiosqlite:///./app.db"
+
+
+# uvicorn==0.34.2
+

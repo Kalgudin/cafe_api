@@ -1,68 +1,63 @@
-import asyncio
-import sys
+# import asyncio
+# import sys
 
-# фикс для Windows + asyncpg
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+# # фикс asyncpg на Windows
+# if sys.platform == "win32":
+#     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import Base, engine, get_db
-from models import User, MenuItem, Order, OrderItem, Favorite, Promotion, LoyaltyTransaction
-import schemas
+from models import * #User, MenuItem, Order, OrderItem, Favorite, Promotion, LoyaltyTransaction
+# import models
 
 app = FastAPI(title="Coffee API")
 
 
-# создаём таблицы при старте
 @app.on_event("startup")
 async def on_startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    print("База готова")
 
-
-@app.get("/")
+@app.get("/", tags=["root"])
 async def root():
-    return {"message": "API работает"}
-
+    return {"message": "Заработало!!!"}
 
 # ==================== USERS ====================
-@app.post("/users", response_model=schemas.UserOut)
-async def create_user(data: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
-    user = User(name=data.name, phone=data.phone)
+@app.post("/users", response_model=UserOut)
+async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db)):
+    # проверяем, что телефон свободен
+    exists = await db.execute(select(User).where(User.phone == data.phone))
+    if exists.scalar_one_or_none():
+        raise HTTPException(400, "Такой телефон уже зарегистрирован")
+
+    # вручную, а не User(**data.model_dump()) — потому что password нужно хешировать
+    user = User(
+        name=data.name,
+        phone=data.phone,
+        password_hash=hash_password(data.password),
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)
     return user
 
 
-@app.get("/users", response_model=list[schemas.UserOut])
+@app.get("/users", response_model=list[UserOut])
 async def get_users(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User))
     return result.scalars().all()
 
 
-@app.get("/users/{user_id}", response_model=schemas.UserOut)
+@app.get("/users/{user_id}", response_model=UserOut)
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(404, "Пользователь не найден")
     return user
-
-
-@app.get("/users/{user_id}/orders", response_model=list[schemas.OrderOut])
-async def get_user_orders(user_id: int, db: AsyncSession = Depends(get_db)):
-    # используем связь user.orders
-    result = await db.execute(
-        select(User).options(selectinload(User.orders)).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(404, "Пользователь не найден")
-    return user.orders
 
 
 @app.delete("/users/{user_id}")
@@ -76,25 +71,22 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # ==================== MENU ====================
-@app.post("/menu", response_model=schemas.MenuItemOut)
-async def create_menu_item(data: schemas.MenuItemCreate, db: AsyncSession = Depends(get_db)):
-    item = MenuItem(**data.dict())
+@app.post("/menu", response_model=MenuItemOut)
+async def create_menu(data: MenuItemCreate, db: AsyncSession = Depends(get_db)):
+    item = MenuItem(**data.model_dump())
     db.add(item)
     await db.commit()
     await db.refresh(item)
     return item
 
 
-@app.get("/menu", response_model=list[schemas.MenuItemOut])
-async def get_menu(category: str | None = None, db: AsyncSession = Depends(get_db)):
-    query = select(MenuItem)
-    if category:
-        query = query.where(MenuItem.category == category)
-    result = await db.execute(query)
+@app.get("/menu", response_model=list[MenuItemOut])
+async def get_menu(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(MenuItem))
     return result.scalars().all()
 
 
-@app.get("/menu/{item_id}", response_model=schemas.MenuItemOut)
+@app.get("/menu/{item_id}", response_model=MenuItemOut)
 async def get_menu_item(item_id: int, db: AsyncSession = Depends(get_db)):
     item = await db.get(MenuItem, item_id)
     if not item:
@@ -113,16 +105,15 @@ async def delete_menu_item(item_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # ==================== ORDERS ====================
-@app.post("/orders", response_model=schemas.OrderFull)
-async def create_order(data: schemas.OrderCreate, db: AsyncSession = Depends(get_db)):
+@app.post("/orders", response_model=OrderOut)
+async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     user = await db.get(User, data.user_id)
     if not user:
         raise HTTPException(404, "Пользователь не найден")
 
-    # создаём заказ
     order = Order(user_id=data.user_id, delivery_method=data.delivery_method, total=0)
     db.add(order)
-    await db.flush()  # чтобы получить order.id
+    await db.flush()
 
     total = 0
     for item in data.items:
@@ -135,67 +126,41 @@ async def create_order(data: schemas.OrderCreate, db: AsyncSession = Depends(get
         price = float(menu_item.price) * item.quantity
         total += price
 
-        # добавляем позицию через связь order.items
-        order.items.append(
-            OrderItem(
-                menu_item_id=item.menu_item_id,
-                quantity=item.quantity,
-                drink_options=item.drink_options,
-                price=price,
-            )
-        )
+        order.items.append(OrderItem(
+            menu_item_id=item.menu_item_id,
+            quantity=item.quantity,
+            drink_options=item.drink_options,
+            price=price,
+        ))
 
     order.total = total
     await db.commit()
-
-    # подгружаем связи и возвращаем заказ со всеми деталями
-    result = await db.execute(
-        select(Order)
-        .options(
-            selectinload(Order.items).selectinload(OrderItem.menu_item),
-            selectinload(Order.user),
-        )
-        .where(Order.id == order.id)
-    )
-    return result.scalar_one()
+    await db.refresh(order)
+    return order
 
 
-@app.get("/orders", response_model=list[schemas.OrderFull])
+@app.get("/orders", response_model=list[OrderOut])
 async def get_orders(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Order).options(
-            selectinload(Order.items).selectinload(OrderItem.menu_item),
-            selectinload(Order.user),
-        )
-    )
+    result = await db.execute(select(Order))
     return result.scalars().all()
 
 
-@app.get("/orders/{order_id}", response_model=schemas.OrderFull)
+@app.get("/orders/{order_id}", response_model=OrderOut)
 async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Order)
-        .options(
-            selectinload(Order.items).selectinload(OrderItem.menu_item),
-            selectinload(Order.user),
-        )
-        .where(Order.id == order_id)
-    )
-    order = result.scalar_one_or_none()
+    order = await db.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Заказ не найден")
     return order
 
 
 @app.patch("/orders/{order_id}/status")
-async def update_order_status(order_id: int, status: str, db: AsyncSession = Depends(get_db)):
+async def update_status(order_id: int, status: str, db: AsyncSession = Depends(get_db)):
     order = await db.get(Order, order_id)
     if not order:
         raise HTTPException(404, "Заказ не найден")
     order.status = status
     await db.commit()
-    await db.refresh(order)
-    return order
+    return {"ok": True}
 
 
 @app.delete("/orders/{order_id}")
@@ -209,22 +174,18 @@ async def delete_order(order_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # ==================== FAVORITES ====================
-@app.post("/favorites", response_model=schemas.FavoriteOut)
-async def add_favorite(data: schemas.FavoriteCreate, db: AsyncSession = Depends(get_db)):
-    fav = Favorite(user_id=data.user_id, menu_item_id=data.menu_item_id)
+@app.post("/favorites", response_model=FavoriteOut)
+async def add_favorite(data: FavoriteCreate, db: AsyncSession = Depends(get_db)):
+    fav = Favorite(**data.model_dump())
     db.add(fav)
     await db.commit()
     await db.refresh(fav)
     return fav
 
 
-@app.get("/favorites/{user_id}", response_model=list[schemas.FavoriteFull])
+@app.get("/favorites/{user_id}", response_model=list[FavoriteOut])
 async def get_favorites(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Favorite)
-        .options(selectinload(Favorite.menu_item))
-        .where(Favorite.user_id == user_id)
-    )
+    result = await db.execute(select(Favorite).where(Favorite.user_id == user_id))
     return result.scalars().all()
 
 
@@ -239,16 +200,16 @@ async def delete_favorite(fav_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # ==================== PROMOTIONS ====================
-@app.post("/promotions", response_model=schemas.PromotionOut)
-async def create_promotion(data: schemas.PromotionCreate, db: AsyncSession = Depends(get_db)):
-    promo = Promotion(**data.dict())
+@app.post("/promotions", response_model=PromotionOut)
+async def create_promotion(data: PromotionCreate, db: AsyncSession = Depends(get_db)):
+    promo = Promotion(**data.model_dump())
     db.add(promo)
     await db.commit()
     await db.refresh(promo)
     return promo
 
 
-@app.get("/promotions/{user_id}", response_model=list[schemas.PromotionOut])
+@app.get("/promotions/{user_id}", response_model=list[PromotionOut])
 async def get_promotions(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Promotion).where(Promotion.user_id == user_id))
     return result.scalars().all()
@@ -265,13 +226,12 @@ async def delete_promotion(promo_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # ==================== LOYALTY ====================
-@app.post("/loyalty", response_model=schemas.LoyaltyFull)
-async def create_loyalty(data: schemas.LoyaltyCreate, db: AsyncSession = Depends(get_db)):
+@app.post("/loyalty", response_model=LoyaltyOut)
+async def create_loyalty(data: LoyaltyCreate, db: AsyncSession = Depends(get_db)):
     user = await db.get(User, data.user_id)
     if not user:
         raise HTTPException(404, "Пользователь не найден")
 
-    # обновляем баланс
     if data.operation_type == "accrual":
         user.balance_points += data.points
     elif data.operation_type == "spend":
@@ -281,21 +241,16 @@ async def create_loyalty(data: schemas.LoyaltyCreate, db: AsyncSession = Depends
     elif data.operation_type == "refund":
         user.balance_points += data.points
     else:
-        raise HTTPException(400, "Неверный тип операции")
+        raise HTTPException(400, "Тип операции: accrual / spend / refund")
 
-    transaction = LoyaltyTransaction(
-        user_id=data.user_id,
-        order_id=data.order_id,
-        points=data.points,
-        operation_type=data.operation_type,
-    )
-    db.add(transaction)
+    tx = LoyaltyTransaction(**data.model_dump())
+    db.add(tx)
     await db.commit()
-    await db.refresh(transaction)
-    return transaction
+    await db.refresh(tx)
+    return tx
 
 
-@app.get("/loyalty/{user_id}", response_model=list[schemas.LoyaltyFull])
+@app.get("/loyalty/{user_id}", response_model=list[LoyaltyOut])
 async def get_loyalty(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(LoyaltyTransaction).where(LoyaltyTransaction.user_id == user_id)

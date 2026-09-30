@@ -2,21 +2,18 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import DeclarativeBase
 
 # строка подключения к postgres
-# DATABASE_URL = "postgresql+asyncpg://postgres:Xzxz0011@localhost:5432/coffee_db"
-DATABASE_URL = "sqlite+aiosqlite:///./app.db"
 
-engine = create_async_engine(DATABASE_URL)
+DATABASE_URL = "postgresql+asyncpg://cafe_admin:cafe_admin@localhost:5433/coffee_db"
+# DATABASE_URL = "sqlite+aiosqlite:///./app.db"
 
-# фабрика сессий
+engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-# базовый класс для моделей
 class Base(DeclarativeBase):
     pass
 
 
-# зависимость для эндпоинтов
 async def get_db():
     async with SessionLocal() as session:
         yield session
