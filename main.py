@@ -8,11 +8,10 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from database import Base, engine, get_db
 from models import * #User, MenuItem, Order, OrderItem, Favorite, Promotion, LoyaltyTransaction
-# import models
-
 app = FastAPI(title="Coffee API")
 
 
@@ -43,6 +42,18 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    return user
+
+@app.post("/login", response_model=UserOut)
+async def login(data: LoginData, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.phone == data.phone))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(401, "Неверный телефон или пароль")
+
+    if user.password_hash != hash_password(data.password):
+        raise HTTPException(401, "Неверный телефон или пароль")
+
     return user
 
 
@@ -139,9 +150,11 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     return order
 
 
-@app.get("/orders", response_model=list[OrderOut])
+@app.get("/orders", response_model=list[OrderFull])
 async def get_orders(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Order))
+    result = await db.execute(
+        select(Order).options(selectinload(Order.items))
+    )
     return result.scalars().all()
 
 

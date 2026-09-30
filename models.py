@@ -37,6 +37,10 @@ class UserCreate(BaseModel):
     phone: str
     password: str                       # ← принимаем пароль при регистрации
 
+class LoginData(BaseModel):
+    phone: str
+    password: str
+
 
 class UserOut(BaseModel):
     id: int
@@ -140,11 +144,21 @@ class OrderItem(Base):
 
 class OrderItemOut(BaseModel):
     id: int
-    order_id: int
     menu_item_id: int
     quantity: int
     drink_options: str
     price: float
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderFull(BaseModel):
+    id: int
+    user_id: int
+    date: datetime
+    total: float
+    status: str
+    delivery_method: str
+    items: list[OrderItemOut] = []
     model_config = ConfigDict(from_attributes=True)
 
 
