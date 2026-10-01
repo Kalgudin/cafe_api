@@ -5,6 +5,7 @@ pip install -r requirements.txt
 psql -U postgres
 
 CREATE DATABASE coffee_db;
+CREATE USER cafe_admin;
 ALTER DATABASE coffee_db OWNER TO cafe_admin;
 GRANT ALL PRIVILEGES ON DATABASE coffee_db TO cafe_admin;
 
@@ -16,10 +17,15 @@ uvicorn main:app --reload
 
 
 # строка подключения к postgres
-#DATABASE_URL = "postgresql+asyncpg://postgres:Xzxz0011@localhost:5433/coffee_db"
+
 #DATABASE_URL = "postgresql+asyncpg://cafe_admin:cafe_admin@localhost:5432/coffee_db"
 # DATABASE_URL = "sqlite+aiosqlite:///./app.db"
 
 
-# uvicorn==0.34.2
+
+
+
+# curl http://127.0.0.1:8000/openapi.json -o openapi.json
+
+# pg_dump -U postgres -d имя_базы --schema-only --no-owner > schema.sql
 
