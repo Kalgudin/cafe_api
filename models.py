@@ -2,7 +2,7 @@ import hashlib
 from datetime import datetime
 from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Boolean, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from database import Base
 
@@ -16,7 +16,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
     phone: Mapped[str] = mapped_column(String(20), unique=True)
-    password_hash: Mapped[str] = mapped_column(String(64))          # ← новый столбец
+    password_hash: Mapped[str] = mapped_column(String(64))
     balance_points: Mapped[int] = mapped_column(Integer, default=0)
     registration_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -26,18 +26,12 @@ class User(Base):
     promotions: Mapped[list["Promotion"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
-# --- хеширование пароля ---
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
-# --- схемы User ---
 class UserCreate(BaseModel):
     name: str
-    phone: str
-    password: str                       # ← принимаем пароль при регистрации
-
-class LoginData(BaseModel):
     phone: str
     password: str
 
@@ -51,10 +45,9 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class LoginData(BaseModel):             # ← для эндпоинта /login
+class LoginData(BaseModel):
     phone: str
     password: str
-
 
 
 # ============================================================
@@ -112,7 +105,7 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     user_id: int
     delivery_method: str = "pickup"
-    items: list[OrderItemCreate] = []
+    items: list[OrderItemCreate] = Field(default_factory=list)
 
 
 class OrderOut(BaseModel):
@@ -123,23 +116,6 @@ class OrderOut(BaseModel):
     status: str
     delivery_method: str
     model_config = ConfigDict(from_attributes=True)
-
-
-# ============================================================
-#                      ORDER ITEM
-# ============================================================
-class OrderItem(Base):
-    __tablename__ = "order_items"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
-    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id"))
-    quantity: Mapped[int] = mapped_column(Integer, default=1)
-    drink_options: Mapped[str] = mapped_column(String(300), default="")
-    price: Mapped[float] = mapped_column(Numeric(10, 2))
-
-    order: Mapped["Order"] = relationship(back_populates="items")
-    menu_item: Mapped["MenuItem"] = relationship(back_populates="order_items")
 
 
 class OrderItemOut(BaseModel):
@@ -160,6 +136,23 @@ class OrderFull(BaseModel):
     delivery_method: str
     items: list[OrderItemOut] = []
     model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================================
+#                      ORDER ITEM
+# ============================================================
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id"))
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    drink_options: Mapped[str] = mapped_column(String(300), default="")
+    price: Mapped[float] = mapped_column(Numeric(10, 2))
+
+    order: Mapped["Order"] = relationship(back_populates="items")
+    menu_item: Mapped["MenuItem"] = relationship(back_populates="order_items")
 
 
 # ============================================================

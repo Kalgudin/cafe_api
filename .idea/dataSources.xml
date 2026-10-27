@@ -2,7 +2,7 @@
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
     <data-source source="LOCAL" name="cafe_base" uuid="bb321468-3523-46cb-85fc-c90c1a4e4949">
-      <driver-ref>sqlite.xerial</driver-ref>
+      <driver-ref>9ad48b0c-5a85-4774-b51f-7ca3860e8fc1</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
       <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/cafe_base.db</jdbc-url>
@@ -53,7 +53,7 @@
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
-      <jdbc-url>jdbc:postgresql://localhost:5432/coffee_db</jdbc-url>
+      <jdbc-url>jdbc:postgresql://localhost:5433/coffee_db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
   </component>
