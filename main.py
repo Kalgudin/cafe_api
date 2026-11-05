@@ -1,11 +1,11 @@
+
 import asyncio
 import sys
 
-# ЭТИ ДВЕ СТРОКИ ОБЯЗАТЕЛЬНЫ ДЛЯ WINDOWS + ASYNCPG
+# Настройка для Windows + asyncpg
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# Только теперь импорты
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -33,6 +33,7 @@ async def on_startup():
 
 
 # ==================== USERS ====================
+
 @app.post("/users", response_model=UserOut)
 async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db)):
     exists = await db.execute(select(User).where(User.phone == data.phone))
@@ -54,6 +55,7 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db)):
 async def login(data: LoginData, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.phone == data.phone))
     found_user = result.scalar_one_or_none()
+
     if not found_user:
         raise HTTPException(401, "Неверный телефон или пароль")
 
@@ -82,12 +84,13 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     found = await db.get(User, user_id)
     if not found:
         raise HTTPException(404, "Пользователь не найден")
+
     await db.delete(found)
     await db.commit()
     return {"ok": True}
 
 
-# ==================== MENU ====================
+
 @app.post("/menu", response_model=MenuItemOut)
 async def create_menu(data: MenuItemCreate, db: AsyncSession = Depends(get_db)):
     new_item = MenuItem(**data.model_dump())
@@ -116,30 +119,35 @@ async def delete_menu_item(item_id: int, db: AsyncSession = Depends(get_db)):
     found = await db.get(MenuItem, item_id)
     if not found:
         raise HTTPException(404, "Позиция не найдена")
+
     await db.delete(found)
     await db.commit()
     return {"ok": True}
 
 
-# ==================== ORDERS ====================
+
 @app.post("/orders", response_model=OrderOut)
 async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
-    # 1) проверяем пользователя
     found_user = await db.get(User, data.user_id)
     if not found_user:
         raise HTTPException(404, "Пользователь не найден")
 
-    # 2) создаём заказ (переменная НАЗЫВАЕТСЯ new_order, чтобы не затереть ничего встроенного)
-    new_order = Order(user_id=data.user_id, delivery_method=data.delivery_method, total=0)
+    new_order = Order(
+        user_id=data.user_id,
+        delivery_method=data.delivery_method,
+        total=0
+    )
     db.add(new_order)
-    await db.flush()   # получаем new_order.id
+    await db.flush()
 
-    # 3) создаём позиции
     total = 0
+
     for item in data.items:
         found_menu_item = await db.get(MenuItem, item.menu_item_id)
+
         if not found_menu_item:
             raise HTTPException(404, f"Позиция {item.menu_item_id} не найдена")
+
         if not found_menu_item.is_available:
             raise HTTPException(400, f"{found_menu_item.name} недоступна")
 
@@ -154,8 +162,8 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
             price=price,
         ))
 
-    # 4) сохраняем сумму
     new_order.total = total
+
     await db.commit()
     await db.refresh(new_order)
     return new_order
@@ -178,10 +186,15 @@ async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @app.patch("/orders/{order_id}/status")
-async def update_status(order_id: int, status: str, db: AsyncSession = Depends(get_db)):
+async def update_status(
+    order_id: int,
+    status: str,
+    db: AsyncSession = Depends(get_db)
+):
     found = await db.get(Order, order_id)
     if not found:
         raise HTTPException(404, "Заказ не найден")
+
     found.status = status
     await db.commit()
     return {"ok": True}
@@ -192,12 +205,13 @@ async def delete_order(order_id: int, db: AsyncSession = Depends(get_db)):
     found = await db.get(Order, order_id)
     if not found:
         raise HTTPException(404, "Заказ не найден")
+
     await db.delete(found)
     await db.commit()
     return {"ok": True}
 
 
-# ==================== FAVORITES ====================
+
 @app.post("/favorites", response_model=FavoriteOut)
 async def add_favorite(data: FavoriteCreate, db: AsyncSession = Depends(get_db)):
     new_fav = Favorite(**data.model_dump())
@@ -209,7 +223,9 @@ async def add_favorite(data: FavoriteCreate, db: AsyncSession = Depends(get_db))
 
 @app.get("/favorites/{user_id}", response_model=list[FavoriteOut])
 async def get_favorites(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Favorite).where(Favorite.user_id == user_id))
+    result = await db.execute(
+        select(Favorite).where(Favorite.user_id == user_id)
+    )
     return result.scalars().all()
 
 
@@ -218,12 +234,13 @@ async def delete_favorite(fav_id: int, db: AsyncSession = Depends(get_db)):
     found = await db.get(Favorite, fav_id)
     if not found:
         raise HTTPException(404, "Избранное не найдено")
+
     await db.delete(found)
     await db.commit()
     return {"ok": True}
 
 
-# ==================== PROMOTIONS ====================
+
 @app.post("/promotions", response_model=PromotionOut)
 async def create_promotion(data: PromotionCreate, db: AsyncSession = Depends(get_db)):
     new_promo = Promotion(**data.model_dump())
@@ -235,7 +252,9 @@ async def create_promotion(data: PromotionCreate, db: AsyncSession = Depends(get
 
 @app.get("/promotions/{user_id}", response_model=list[PromotionOut])
 async def get_promotions(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Promotion).where(Promotion.user_id == user_id))
+    result = await db.execute(
+        select(Promotion).where(Promotion.user_id == user_id)
+    )
     return result.scalars().all()
 
 
@@ -244,12 +263,13 @@ async def delete_promotion(promo_id: int, db: AsyncSession = Depends(get_db)):
     found = await db.get(Promotion, promo_id)
     if not found:
         raise HTTPException(404, "Акция не найдена")
+
     await db.delete(found)
     await db.commit()
     return {"ok": True}
 
 
-# ==================== LOYALTY ====================
+
 @app.post("/loyalty", response_model=LoyaltyOut)
 async def create_loyalty(data: LoyaltyCreate, db: AsyncSession = Depends(get_db)):
     found_user = await db.get(User, data.user_id)
@@ -258,17 +278,21 @@ async def create_loyalty(data: LoyaltyCreate, db: AsyncSession = Depends(get_db)
 
     if data.operation_type == "accrual":
         found_user.balance_points += data.points
+
     elif data.operation_type == "spend":
         if found_user.balance_points < data.points:
             raise HTTPException(400, "Недостаточно баллов")
         found_user.balance_points -= data.points
+
     elif data.operation_type == "refund":
         found_user.balance_points += data.points
+
     else:
         raise HTTPException(400, "Тип операции: accrual / spend / refund")
 
     new_tx = LoyaltyTransaction(**data.model_dump())
     db.add(new_tx)
+
     await db.commit()
     await db.refresh(new_tx)
     return new_tx
@@ -277,7 +301,14 @@ async def create_loyalty(data: LoyaltyCreate, db: AsyncSession = Depends(get_db)
 @app.get("/loyalty/{user_id}", response_model=list[LoyaltyOut])
 async def get_loyalty(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(LoyaltyTransaction).where(LoyaltyTransaction.user_id == user_id)
+        select(LoyaltyTransaction).where(
+            LoyaltyTransaction.user_id == user_id
+        )
     )
     return result.scalars().all()
-@app.get("/health"), async def health_check(), return {«status»: «ok»}
+
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
