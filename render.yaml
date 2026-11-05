@@ -1,0 +1,1 @@
+services, тип web, имя cafe-api, рантайм python, команда сборки pip install -r requirements.txt, стартовая команда uvicorn main:app --host 0.0.0.0 --port $PORT, и переменная DATABASE_URL без значения, чтобы задавать её в настройках сервиса
