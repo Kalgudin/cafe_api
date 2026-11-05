@@ -280,3 +280,4 @@ async def get_loyalty(user_id: int, db: AsyncSession = Depends(get_db)):
         select(LoyaltyTransaction).where(LoyaltyTransaction.user_id == user_id)
     )
     return result.scalars().all()
+@app.get("/health"), async def health_check(), return {«status»: «ok»}
